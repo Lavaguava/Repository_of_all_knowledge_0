@@ -1,0 +1,407 @@
+//declare variables for the motor pins
+
+const byte starboardmotorPin1 = 38;	
+const byte starboardmotorPin2 = 40;	
+const byte starboardmotorPin3 = 42;	
+const byte starboardmotorPin4 = 44;
+
+const byte portmotorPin1 = 46;	
+const byte portmotorPin2 = 48;	
+const byte portmotorPin3 = 50;	
+const byte portmotorPin4 = 52;	
+
+//Do some research on phototransistors, ensure you
+//search for "phototransistor" not "photodiode"
+
+const byte hardstarboardphototransistor = 27;
+const byte hardstarboardledpin = 29;
+const byte hardportphototransistor = 31;
+const byte hardportledpin = 33;
+
+const int trig = 7;
+const int echo = 8;
+const int xpin = A3;
+const int ypin = A4;
+const int zpin = A5;
+const int leftactivate = 26;
+const int rightactivate = 28;
+
+in&t motorSpeed = 1500;  //variable to set stepper speed
+int lookup[8] = 
+{
+  B01000, B01100, B00100, B00110, B00010, B00011, B00001, B01001
+};
+int xcoordinate[10] =
+{
+  0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+};
+int ycoordinate[10] =
+{
+  0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+};
+byte countl = 0;
+byte countr = 0;
+byte stage = 0;
+byte select = 0; ////////////////////////////////review
+int environmentcheck = 0;
+byte rlselect = 0;
+
+long duration, inches, cm;
+long outsidecm;
+int xg;
+int yg;
+int zg;
+/////////////////////////////////////////////////////////
+void setup()
+{
+  //declare the motor pins as outputs
+  pinMode(portmotorPin1, OUTPUT);
+  pinMode(portmotorPin2, OUTPUT);
+  pinMode(portmotorPin3, OUTPUT);
+  pinMode(portmotorPin4, OUTPUT);
+
+  pinMode(starboardmotorPin1, OUTPUT);
+  pinMode(starboardmotorPin2, OUTPUT);
+  pinMode(starboardmotorPin3, OUTPUT);
+  pinMode(starboardmotorPin4, OUTPUT);
+
+
+  pinMode(hardportledpin, OUTPUT);
+  pinMode(hardportphototransistor, INPUT);
+  pinMode(hardstarboardledpin, OUTPUT);
+  pinMode(hardstarboardphototransistor, INPUT);
+
+  pinMode(13, OUTPUT);
+  digitalWrite(13, LOW);
+
+  pinMode(leftactivate, INPUT);
+  pinMode(rightactivate, INPUT);
+}
+
+//////////////////////////////////////////////////////////////////////////////////////
+//Below is the main loop that will carry out the actions, variables and functions are used in here
+//to instruct the robot.
+void loop()
+{
+  //linefollowselect();
+
+
+  environmentcheck = environmentcheck + 1;
+
+
+  if(environmentcheck == 1024)
+  {
+    rightleftselect();
+    environmentcheck = 0;
+  }
+
+  if(rlselect == 1)
+  {
+    rightforward();
+  }
+
+  if(rlselect == 0)
+  {
+    leftforward();
+  }
+  /*
+  if(0 == 0 && cm > 10)
+   {
+   forward();
+   }
+   
+   if(cm < 10)
+   {
+   mapmode();
+   }
+   
+   */
+  if(select == 1)
+  {
+    lightlinefollow();
+  }
+
+  if(select == 2)
+  {
+
+  }
+
+}
+
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+// code to follow a drawn line, dark line on light background
+void darklinefollow()
+{
+
+  digitalWrite(hardportledpin, HIGH);
+
+  if((digitalRead(hardportphototransistor) == HIGH) && (digitalRead(hardstarboardphototransistor) == LOW))
+  {
+    leftforward();
+  }
+
+  if((digitalRead(hardportphototransistor) == HIGH) && (digitalRead(hardstarboardphototransistor) == HIGH))
+  {
+    forward();
+  }
+
+  digitalWrite(hardportledpin, LOW);
+  digitalWrite(hardstarboardledpin, HIGH);
+
+  if((digitalRead(hardstarboardphototransistor) == HIGH) && (digitalRead(hardportphototransistor) == LOW))
+  {
+    rightforward();
+  }
+
+  digitalWrite(hardstarboardledpin, LOW);
+}
+
+void lightlinefollow()
+{
+
+  digitalWrite(hardportledpin, HIGH);
+  if(digitalRead(hardportphototransistor) == LOW)
+  {
+    leftforward();
+  }
+
+  if((digitalRead(hardportphototransistor) == LOW) && (digitalRead(hardstarboardphototransistor) == LOW))
+  {
+    forward();
+  }
+  digitalWrite(hardportledpin, LOW);
+
+  digitalWrite(hardstarboardledpin, HIGH);
+  if(digitalRead(hardstarboardphototransistor) == HIGH)
+  {
+    rightforward();
+  }
+
+  digitalWrite(hardstarboardledpin, LOW);
+}
+
+
+//////////////////////////below are the functions for human interface through the adafruit
+//capacitive touch pad
+
+
+void linefollowselect()
+{
+
+  byte pushswitchState = 0; 
+  byte pushswitchPin = 4;
+  byte moveselect = 0;
+
+  pushswitchState = digitalRead(pushswitchPin);
+
+  if (pushswitchState == LOW)
+  {  
+    delay(10);
+    moveselect = (select + 1);
+  }
+
+
+  if((pushswitchState == HIGH) && (moveselect == (select + 1)))
+  {
+
+    if(select < 3)
+    {
+      select = select + 1;
+    } 
+
+    if(select == 3)
+    {
+      select = 0;
+    }
+  }
+}
+
+void rightleftselect()
+{
+  if(digitalRead(rightactivate) == HIGH)
+  {
+    rlselect = 1;
+  } 
+
+  if(digitalRead(leftactivate) == HIGH)
+  {
+    rlselect = 0;
+  }
+}
+
+//////////////////////////////////////////////////////////////////////
+
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////// below: functions for movement of individual stepper motors
+
+void leftforward()
+{
+  for(int i = 0; i < 8; i++)
+  {
+    lsetOutput(i);
+    delayMicroseconds(motorSpeed);
+  }
+}
+
+void rightforward()
+{
+  for(int n = 7; n >= 0; n--)
+  {
+    rsetOutput(n);
+    delayMicroseconds(motorSpeed);
+  }
+}
+
+void leftbackward()
+{
+  for(int i = 7; i >= 0; i--)
+  {
+    lsetOutput(i);
+    delayMicroseconds(motorSpeed);
+  }
+}
+
+void rightbackward()
+{
+  for(int n = 0; n < 8; n++)
+  {
+    rsetOutput(n);
+    delayMicroseconds(motorSpeed);
+  }
+}
+
+
+
+
+void backward()
+{
+  for (int i = 7; i >= 0; i--)
+  {
+    lsetOutput(i);
+    delayMicroseconds(motorSpeed);
+  }
+  for (int n = 0; n < 8; n++)
+  {
+    rsetOutput(n);
+    delayMicroseconds(motorSpeed);
+  }
+}
+
+void forward()
+{
+  for (int n = 7; n >= 0; n--)
+  {
+    rsetOutput(n);
+    delayMicroseconds(motorSpeed);
+  }
+  for (int i = 0; i < 8; i++)
+  {
+    lsetOutput(i);
+    delayMicroseconds(motorSpeed);
+  }
+}
+
+void randavoidancesequence()
+
+{
+  int rlchoose = analogRead(A0) % 1;
+
+  for (int i = 0; i<2048; i++)
+  {
+    void backward(); 
+  }
+
+  if(rlchoose == 0){
+    for(int i = 0; i<2048; i++)
+    {
+      void leftbackwards();
+    }
+  }
+
+  if(rlchoose == 0){
+    for (int i = 0; i<2048; i++)
+    {
+      void rightbackwards();
+    }
+  }
+}
+
+void distance()
+{
+
+  const int trig = 7;
+  const int echo = 8;
+
+
+  pinMode(trig, OUTPUT);
+  digitalWrite(trig, LOW);
+  delayMicroseconds(2);
+  digitalWrite(trig, HIGH);
+  delayMicroseconds(5);
+  digitalWrite(trig, LOW);
+
+
+  pinMode(echo, INPUT);
+  duration = pulseIn(echo, HIGH);
+
+  inches = microsecondsToInches(duration);
+  cm = microsecondsToCentimeters(duration);
+
+}
+
+long microsecondsToInches(long microseconds)
+{
+  return microseconds / 74 / 2;
+}
+
+long microsecondsToCentimeters(long microseconds)
+{
+  // The speed of sound is 340 m/s or 29 microseconds per centimeter.
+  // The ping travels out and back, so to find the distance of the
+  // object we take half of the distance travelled.
+  return microseconds / 29 / 2;
+}
+
+void tilt()
+{
+  xg = ((analogRead(A3)- 1.65)*(5 / 1023.0)) ;
+  yg = ((analogRead(A4)- 1.65)*(5 / 1023.0)) ;
+  zg = ((analogRead(A5)- 1.65)*(5 / 1023.0)) ;  
+
+}
+
+void warmbodymovement()
+{
+
+}
+
+void mapmode()
+{
+
+}
+//////////////////////// function to cycle through left stepper motor solenoids
+void rsetOutput(int out)
+{
+  digitalWrite(portmotorPin1, bitRead(lookup[out], 0));
+  digitalWrite(portmotorPin2, bitRead(lookup[out], 1));
+  digitalWrite(portmotorPin3, bitRead(lookup[out], 2));
+  digitalWrite(portmotorPin4, bitRead(lookup[out], 3));
+}
+
+//////////////////////// function to cycle through right stepper motor solenoids
+void lsetOutput(int out)
+{
+  digitalWrite(starboardmotorPin1, bitRead(lookup[out], 0));
+  digitalWrite(starboardmotorPin2, bitRead(lookup[out], 1));
+  digitalWrite(starboardmotorPin3, bitRead(lookup[out], 2));
+  digitalWrite(starboardmotorPin4, bitRead(lookup[out], 3));
+}
+
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
